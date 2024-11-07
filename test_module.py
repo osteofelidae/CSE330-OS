@@ -31,6 +31,12 @@ Process management
 """
 
 
+def set_swap(enable: bool):
+    cmd = 'swapon' if enable else 'swapoff'
+    proc = subprocess.Popen([cmd, '-a'])
+    proc.communicate()
+
+
 def start_testp5_proc(arg: int):
     if not os.path.exists('./testp5'):
         print('Cannot find testp5 binary. Run the script in the same'
@@ -358,8 +364,7 @@ Main
 def usage_and_die():
     print('Usage: sudo ./test_module.py /path/to/memory_manager.ko '
           '<scalar> <present> <swapped> <invalid>')
-    print(' - scalar  : You MUST set your VM to use 4GB memory to ensure the '
-          'test scripts can generate swap pages. Use 4 for this argument.\n'
+    print(' - scalar  : This should change based on RAM size and test case.\n'
           ' - present : The number of present addresses to test.\n'
           ' - swapped : The number of swapped addresses to test.\n'
           ' - invalid : The number of invalid addresses to test.')
@@ -382,10 +387,20 @@ if __name__ == "__main__":
     num_swapped = int(argv[4])
     num_invalid = int(argv[5])
 
+    # We only enable swap if we wish to test swap, otherwise we leave it off
+    # to avoid any non-determinism with present pages being moved to swap
+    if num_swapped > 0:
+        print('[log]: Enabling swap')
+        set_swap(enable=True)
+    else:
+        print('[log]: Disable swap')
+        set_swap(enable=False)
+
     # Start the testp5 process
     proc = start_testp5_proc(scalar)
-    print('[log]: Waiting for 5 seconds to allow time '
-          'for pages to be moved to swap')
+    print('[log]: Waiting for 5 seconds to allow '
+          'pages to be present and/or to be moved '
+          'to swap')
     sleep(5)
 
     # These are each tuple lists of virtual/physical address pairs
@@ -399,27 +414,35 @@ if __name__ == "__main__":
 
     """
 
-    print(f'[log]: Checking {num_present} random present pages')
-    for i in range(num_present):
+    if num_present > 0:
 
-        if module_cant_unload or module_cant_load:
-            break
+        while len(present_pages) == 0:
+            print('[log]: No present pages found, waiting for 5 '
+                  'seconds and looking for more')
+            sleep(5)
+            swap_pages, present_pages = get_pages_info(proc.pid)
 
-        retry = False
-        while not retry:
-            page_offset = __gen_page_offset()
-            virt, phys = random.choice(present_pages)
-            virt = virt | page_offset
-            # print(f'{hex(virt)} -> {hex(phys)}')
-            retry = test_physical_addr(path, proc.pid, virt, phys)
+        print(f'[log]: Checking {num_present} random present pages')
+        for i in range(num_present):
 
-    if num_present_correct == num_present:
-        print(f'[log]: - {num_present_correct}/{num_present} correct')
-    else:
-        deduct = calc_deduct(num_present_correct, num_present) * 100
-        test_passed = False
-        print(f'[log]: - {num_present_correct}/{num_present} '
-              f'correct (-{deduct} points)')
+            if module_cant_unload or module_cant_load:
+                break
+
+            retry = False
+            while not retry:
+                page_offset = __gen_page_offset()
+                virt, phys = random.choice(present_pages)
+                virt = virt | page_offset
+                # print(f'{hex(virt)} -> {hex(phys)}')
+                retry = test_physical_addr(path, proc.pid, virt, phys)
+
+        if num_present_correct == num_present:
+            print(f'[log]: - {num_present_correct}/{num_present} correct')
+        else:
+            deduct = calc_deduct(num_present_correct, num_present) * 100
+            test_passed = False
+            print(f'[log]: - {num_present_correct}/{num_present} '
+                  f'correct (-{deduct} points)')
 
     """
 
@@ -427,19 +450,35 @@ if __name__ == "__main__":
 
     """
 
-    print(f'[log]: Checking {num_swapped} random swapped pages')
-    for i in range(num_swapped):
+    if num_swapped > 0:
 
-        if module_cant_unload or module_cant_load:
-            break
+        while len(swap_pages) == 0:
+            print('[log]: No swap pages found, waiting for 5 '
+                  'seconds and looking for more')
+            sleep(5)
+            swap_pages, present_pages = get_pages_info(proc.pid)
 
-        retry = False
-        while not retry:
-            page_offset = __gen_page_offset()
-            virt, phys = random.choice(swap_pages)
-            virt = virt | page_offset
-            # print(f'{hex(virt)} -> {hex(phys)}')
-            retry = test_swapped_addr(path, proc.pid, virt, phys)
+        print(f'[log]: Checking {num_swapped} random swapped pages')
+        for i in range(num_swapped):
+
+            if module_cant_unload or module_cant_load:
+                break
+
+            retry = False
+            while not retry:
+                page_offset = __gen_page_offset()
+                virt, phys = random.choice(swap_pages)
+                virt = virt | page_offset
+                # print(f'{hex(virt)} -> {hex(phys)}')
+                retry = test_swapped_addr(path, proc.pid, virt, phys)
+
+        if num_swapped_correct == num_swapped:
+            print(f'[log]: - {num_swapped_correct}/{num_swapped} correct')
+        else:
+            deduct = calc_deduct(num_swapped_correct, num_swapped) * 100
+            test_passed = False
+            print(f'[log]: - {num_swapped_correct}/{num_swapped} '
+                  f'correct (-{deduct} points)')
 
     """
 
@@ -447,33 +486,32 @@ if __name__ == "__main__":
 
     """
 
-    if num_swapped_correct == num_swapped:
-        print(f'[log]: - {num_swapped_correct}/{num_swapped} correct')
-    else:
-        deduct = calc_deduct(num_swapped_correct, num_swapped) * 100
-        test_passed = False
-        print(f'[log]: - {num_swapped_correct}/{num_swapped} '
-              f'correct (-{deduct} points)')
+    if num_invalid > 0:
 
-    print(f'[log]: Checking {num_invalid} random invalid pages')
-    for i in range(num_invalid):
+        print(f'[log]: Checking {num_invalid} random invalid pages')
+        for i in range(num_invalid):
 
-        if module_cant_unload or module_cant_load:
-            break
+            if module_cant_unload or module_cant_load:
+                break
 
-        virt = random.choice(invalid_pages)
-        test_invalid_addr(path, proc.pid, virt)
+            virt = random.choice(invalid_pages)
+            test_invalid_addr(path, proc.pid, virt)
 
-    if num_invalid_correct == num_invalid:
-        print(f'[log]: - {num_invalid_correct}/{num_invalid} correct')
-    else:
-        deduct = calc_deduct(num_invalid_correct, num_invalid) * 100
-        test_passed = False
-        print(f'[log]: - {num_invalid_correct}/{num_invalid} '
-              f'correct (-{deduct} points)')
+        if num_invalid_correct == num_invalid:
+            print(f'[log]: - {num_invalid_correct}/{num_invalid} correct')
+        else:
+            deduct = calc_deduct(num_invalid_correct, num_invalid) * 100
+            test_passed = False
+            print(f'[log]: - {num_invalid_correct}/{num_invalid} '
+                  f'correct (-{deduct} points)')
 
     # Stop the testp5 process
     stop_testp5_proc(proc)
+
+    # Re-enable swap if it was disabled
+    if num_swapped == 0:
+        print('[log]: Enabling swap')
+        set_swap(enable=True)
 
     final_score = cal_score(num_present, num_swapped, num_invalid)
     final_score = final_score * 100

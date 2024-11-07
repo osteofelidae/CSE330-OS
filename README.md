@@ -9,9 +9,14 @@ takes a scalar value to denote how much memory to allocate. The `testp5` program
 of memory on the heap and then access each page to bring it present into memory. Since the memory allocation
 is large, some of the pages accessed will be moved to disk. This binary is invoked by `test_module.py` so you
 do not need to run it yourself but you are welcome to do so.
-- Note, you ***MUST*** configure your virtual machine to use 4GB of memory and use 4 for the value of the scalar. This
-is to ensure that the test script will be able to generate a sufficient amount of swapped pages from which various
-virtual addresses will be provided to your kernel module.
+- Note, you ***MUST*** configure your virtual machine to use 2GB-4GB. For some test cases, the value of the `scalar`
+  argument will change based on how much RAM your virtual machine has.
+     - When you are testing virtual addresses mapped to physical addresses belonging to pages in *swap*, the value
+       for `scalar` scales with your RAM. If you are using 2GB, use 2. If you are using 3GB, use 3. And so on.
+     - For all other test cases, set the value of `scalar` to 1.
+  
+  This is to ensure the script will be able to generate swap pages when needed so it can choose virtual addresses belonging to
+  swapped pages to test your kernel module.
 
 You can compile `testp5` using the provided `Makefile` by simply running the following command:
 ```bash
@@ -38,28 +43,40 @@ Since this script reads `/var/log/kern.log` and multiple files from procfs to va
 Usage: Replace `/path/to/memory_manager.ko` with the path to your compiled kernel module:
 ```bash
 Usage: sudo ./test_module.py /path/to/memory_manager.ko <scalar> <present> <swapped> <invalid>
- - scalar  : You MUST set your VM to use 4GB memory to ensure the test scripts can generate swap pages. Use 4 for this argument.
+ - scalar  : This should change based on RAM size and test case.
  - present : The number of present addresses to test.
  - swapped : The number of swapped addresses to test.
  - invalid : The number of invalid addresses to test.
 This script MUST be run as root and you MUST have compiled your kernel module before running.
 ```
 
-Expected output: (Testing 100 pages present in memory)
+Expected output:
+Test Case 1:
 ```
-[log]: Waiting for 5 seconds to allow time for pages to be moved to swap
+[log]: Disable swap
+[log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
 [log]: Checking 100 random present pages
 [log]: - 100/100 correct
-[log]: Checking 0 random swapped pages
-[log]: - 0/0 correct
-[log]: Checking 0 random invalid pages
-[log]: - 0/0 correct
+[log]: Enabling swap
 [memory_manager]: Passed (100.0/100)
 ```
-
-Feel free to run with any number of present, swapped, or invalid tests. This script is intended to give you the flexibility to
-test each one in isolation (i.e. if you want to check 10 addresses from pages in memory, 0 addresses from pages in swap, and
-0 invalid addresses to test one thing at a time on a smaller scale, you are able to do so).
+Test Case 2:
+```
+[log]: Enabling swap
+[log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
+[log]: Checking 100 random swapped pages
+[log]: - 100/100 correct
+[memory_manager]: Passed (100.0/100)
+```
+Test Case 3:
+```
+[log]: Disable swap
+[log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
+[log]: Checking 100 random invalid pages
+[log]: - 100/100 correct
+[log]: Enabling swap
+[memory_manager]: Passed (100.0/100)
+```
 
 ## test_zip_contents.sh
 
