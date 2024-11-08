@@ -26,17 +26,22 @@ make
 This script can be used to test the kernel module. It will do the following when provided the path to your
 compiled kernel module (i.e., a .ko file kernel object), a scalar value to denote how much memory to allocate,
 and the number of present, swapped, and invalid pages to test:
-1. We will start the `testp5` program
-2. We will wait 5 seconds to give the OS some time to move pages to swap
-3. We will test a number of random virtual addresses which lie within present pages in memory
-4. We will test a number of random virtual addresses which lie within swapped pages in memory
-5. We will test a number of random invalid virtual addresses which do not lie within any page in memory
+  1. If the script is going to test virtual addresses mapped to physical addresses in swap, then the script will make sure swap is enabled. Otherwise it will temporarily disable swap.
+  2. The script will start the `testp5` program.
+  3. The script will wait to give the OS some time to either bring pages present into memory or move pages to swap. The script will start by waiting for five seconds. If it still has not found the necessary pages to test your code, it will wait another five seconds. This repeats until the necessary pages exist to test your code.
+  4. We will test a number of random virtual addresses based on the arguments provided. It is reccomended to test addresses present in memory, present in swap, and invalid addresses seperately.
 
 Your kernel module will be loaded and unloaded for each address tested. If for any reason the kernel module either
 fails to load or unload, the script will stop testing and you will be left only with the total points you have
 accumulated so far.
 
-Since this script reads `/var/log/kern.log` and multiple files from procfs to validate your output, it ***MUST*** be run with `sudo`.
+To troubleshoot:
+
+- If you are correctly providing all the commandline arguments and are still finding that the script cannot find any **pages present in main memory**, the `testp5` process may be getting killed by the OS due to it's high memory usage. In this scenario, you should increase the amount of memory for your VM.
+
+- If you are correctly providing all the commandline arguments and are still finding that the script cannot find any **pages present in swap**, make sure your machine is configured to support swap and make sure your usage of the `scalar` argument is correct. If you do not have enough swap, the OS can still kill the `testp5` process if there is not enough.
+
+- Since this script reads `/var/log/kern.log` and multiple files from procfs to validate your output, it ***MUST*** be run with `sudo`.
 
 ### Usage and expected output:
 
@@ -50,8 +55,7 @@ Usage: sudo ./test_module.py /path/to/memory_manager.ko <scalar> <present> <swap
 This script MUST be run as root and you MUST have compiled your kernel module before running.
 ```
 
-Expected output:
-Test Case 1:
+Expected output for test case 1:
 ```
 [log]: Disable swap
 [log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
@@ -60,7 +64,7 @@ Test Case 1:
 [log]: Enabling swap
 [memory_manager]: Passed (100.0/100)
 ```
-Test Case 2:
+Expected output for test case 2:
 ```
 [log]: Enabling swap
 [log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
@@ -68,7 +72,7 @@ Test Case 2:
 [log]: - 100/100 correct
 [memory_manager]: Passed (100.0/100)
 ```
-Test Case 3:
+Expected output for test case 3:
 ```
 [log]: Disable swap
 [log]: Waiting for 5 seconds to allow pages to be present and/or to be moved to swap
