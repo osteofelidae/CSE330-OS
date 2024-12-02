@@ -8,7 +8,7 @@ Before using this script, you must compile your kernel module and create two vir
 1. The script will load your kernel module
 2. The script will create an instance of the `dmcache` device mapper target using the cache and source devices you have provided
 3. The script will run various workloads using the flexible IO tester (fio)
-4. The script will finally check the stats from the cache and the amount of reads dispatched to the backing devices to verify the correctness of your code.
+4. The script will finally check the stats from the cache and the amount of I/O's submitted to the block devices to verify the correctness of your code.
 
 ### Usage and expected output
 
