@@ -20,14 +20,18 @@ def log_mistake(line: str):
 
 def cal_src_read_points(old_src_reads: float, src_reads: float,
                         old_cache_reads: float, cache_reads: float,
-                        expected_src: float, expected_cache: float):
+                        expected_src: float, expected_cache: float, test_case: int):
     global final_score
     print('[log]: Checking data read from source device')
     size_read = (src_reads - old_src_reads + cache_reads - old_cache_reads) / 1024
     # print(f'The size of read is: {int(size_read)} or {size_read}')
 
     if (size_read - expected_cache) != expected_src:
-        points = 10.0
+        if test_case == 2:
+            points = 5.0
+        else: 
+            points = 10.0
+
         final_score -= points
         print(f'[log]: └─ {size_read - expected_cache}MB read from source device expected '
               f'{expected_src}MB (-${points} points)')
@@ -38,14 +42,18 @@ def cal_src_read_points(old_src_reads: float, src_reads: float,
 
 def cal_cache_read_points(old_cache_reads: float, cache_reads: float,
                           old_src_reads: float, src_reads: float,
-                          expected_cache: float, expected_src: float):
+                          expected_cache: float, expected_src: float, test_case: int):
     global final_score
     print('[log]: Checking data read from cache device')
     size_read = (cache_reads - old_cache_reads + src_reads - old_src_reads) / 1024
     # print(f'The size of read is: {int(size_read)} or {size_read}')
 
     if (size_read - expected_src) != expected_cache:
-        points = 10.0
+        if test_case == 2:
+            points = 5.0
+        else: 
+            points = 10.0
+
         final_score -= points
         print(f'[log]: └─ {size_read - expected_src}MB read from cache device expected '
               f'{expected_cache}MB (-${points} points)')
@@ -380,7 +388,7 @@ def do_cache_test(devname: str, target_hr: float, fill_sizemb: int,
         expected_hits = 0
 
         cal_src_read_points(old_src_reads, src_reads, old_cache_reads,
-                            cache_reads, expected_src, expected_cache)
+                            cache_reads, expected_src, expected_cache, 1)
         cal_miss_points(old_misses, misses, old_hits, hits,
                         expected_misses, expected_hits, 1)
     elif target_hr == 0.5:
@@ -391,9 +399,9 @@ def do_cache_test(devname: str, target_hr: float, fill_sizemb: int,
         expected_hits = 131072
 
         cal_src_read_points(old_src_reads, src_reads, old_cache_reads,
-                            cache_reads, expected_src, expected_cache)
+                            cache_reads, expected_src, expected_cache, 2)
         cal_cache_read_points(old_cache_reads, cache_reads, old_src_reads,
-                              src_reads, expected_cache, expected_src)
+                              src_reads, expected_cache, expected_src, 2)
 
         cal_miss_points(old_misses, misses, old_hits, hits,
                         expected_misses, expected_hits, 2)
@@ -406,7 +414,7 @@ def do_cache_test(devname: str, target_hr: float, fill_sizemb: int,
         expected_misses = 0
 
         cal_cache_read_points(old_cache_reads, cache_reads, old_src_reads,
-                              src_reads, expected_cache, expected_src)
+                              src_reads, expected_cache, expected_src, 3)
         cal_hit_points(old_hits, hits, old_misses, misses,
                        expected_hits, expected_misses, 3)
 
